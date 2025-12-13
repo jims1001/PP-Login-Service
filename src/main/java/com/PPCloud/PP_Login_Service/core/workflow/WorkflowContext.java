@@ -3,6 +3,7 @@ package com.PPCloud.PP_Login_Service.core.workflow;
 import com.PPCloud.PP_Login_Service.port.IdentifierNormalizer;
 import com.PPCloud.PP_Login_Service.port.PasswordHasher;
 import com.PPCloud.PP_Login_Service.port.UserDataAccess;
+import com.PPCloud.PP_Login_Service.security.TokenService;
 
 /**
  * WorkflowContext：节点执行时需要的所有上下文
@@ -26,6 +27,7 @@ public class WorkflowContext {
     public final AuditSink audit;
     public final IdentifierNormalizer normalizer;
     public final PasswordHasher passwordHasher;
+    public final TokenService tokenService;
 
     public WorkflowContext(
             String tenantId,
@@ -37,7 +39,7 @@ public class WorkflowContext {
             UserDataAccess userDao,
             AuditSink audit,
             IdentifierNormalizer normalizer,
-            PasswordHasher passwordHasher
+            PasswordHasher passwordHasher, TokenService tokenService
     ) {
         this.tenantId = tenantId;
         this.clientId = clientId;
@@ -49,5 +51,6 @@ public class WorkflowContext {
         this.audit = audit;
         this.normalizer = normalizer;
         this.passwordHasher = passwordHasher;
+        this.tokenService = tokenService;
     }
 }

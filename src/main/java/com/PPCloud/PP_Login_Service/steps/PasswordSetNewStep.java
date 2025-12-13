@@ -50,6 +50,7 @@ public class PasswordSetNewStep implements WorkflowStep {
         ctx.audit.append(IamAuthAudit.simple(ctx, userId, "RESET_DONE", "PASSWORD_UPDATED"));
 
         bag.put("result", Map.of("userId", userId, "passwordUpdated", true));
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

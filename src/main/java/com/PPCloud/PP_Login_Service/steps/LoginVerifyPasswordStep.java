@@ -65,6 +65,7 @@ public class LoginVerifyPasswordStep implements WorkflowStep {
 
         bag.put("authOk", true);
         bag.put("result", Map.of("userId", userId, "issueToken", true)); // 你后续可接发 token
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

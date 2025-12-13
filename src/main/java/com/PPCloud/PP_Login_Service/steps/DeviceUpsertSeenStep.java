@@ -28,6 +28,7 @@ public class DeviceUpsertSeenStep implements WorkflowStep {
 
         // 平台字段你可以自己完善（这里 platform 简化）
         ctx.userDao.upsertDeviceSeen(ctx.tenantId, userId, ctx.deviceFingerprint, ctx.ua, "unknown", ctx.now);
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

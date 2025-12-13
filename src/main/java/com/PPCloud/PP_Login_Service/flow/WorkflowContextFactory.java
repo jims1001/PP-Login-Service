@@ -5,6 +5,7 @@ import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
 import com.PPCloud.PP_Login_Service.port.IdentifierNormalizer;
 import com.PPCloud.PP_Login_Service.port.PasswordHasher;
 import com.PPCloud.PP_Login_Service.port.UserDataAccess;
+import com.PPCloud.PP_Login_Service.security.TokenService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,13 +21,15 @@ public class WorkflowContextFactory {
     private final AuditSink audit;
     private final IdentifierNormalizer normalizer;
     private final PasswordHasher passwordHasher;
+    private final TokenService tokenService;
 
     public WorkflowContextFactory(UserDataAccess userDao, AuditSink audit,
-                                  IdentifierNormalizer normalizer, PasswordHasher passwordHasher) {
+                                  IdentifierNormalizer normalizer, PasswordHasher passwordHasher, TokenService tokenService) {
         this.userDao = userDao;
         this.audit = audit;
         this.normalizer = normalizer;
         this.passwordHasher = passwordHasher;
+        this.tokenService = tokenService;
     }
 
     public WorkflowContext from(String tenantId, String clientId, String ip, String ua, String deviceFingerprint) {
@@ -42,7 +45,8 @@ public class WorkflowContextFactory {
                 userDao,
                 audit,
                 normalizer,
-                passwordHasher
+                passwordHasher,
+                this.tokenService
         );
     }
 }

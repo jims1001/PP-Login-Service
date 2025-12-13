@@ -39,6 +39,7 @@ public class ActionTokenConsumeResetStep implements WorkflowStep {
         // payload 里可以拿到 userId/identifier（取决于你 token payload 存啥）
         bag.put("actionTokenPayload", r.payload());
         ctx.audit.append(IamAuthAudit.simple(ctx, null, "RESET_COMMIT_OK", "TOKEN_CONSUMED"));
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

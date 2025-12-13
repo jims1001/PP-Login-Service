@@ -21,57 +21,97 @@ public class AuthFlowFacadeImpl implements AuthFlowFacade {
 
     private final WorkflowEngine engine;
     private final WorkflowContextFactory contextFactory;
+    private final WorkflowResolver resolver;
 
-    public AuthFlowFacadeImpl(WorkflowEngine engine, WorkflowContextFactory contextFactory) {
+    public AuthFlowFacadeImpl(
+            WorkflowEngine engine,
+            WorkflowContextFactory contextFactory,
+            WorkflowResolver resolver
+    ) {
         this.engine = engine;
         this.contextFactory = contextFactory;
+        this.resolver = resolver;
     }
 
     @Override
     public FlowResult register(RegisterReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
-        WorkflowResponse wr = engine.start(ctx, "WF_REGISTER_START_V1", req);
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // ✅ 关键：按 tenantId + clientId 解析“注册 start”流程
+        String workflowId = resolver.resolveWorkflowId(req.tenantId(), req.clientId(), FlowKind.REGISTER_START);
+
+        WorkflowResponse wr = engine.start(ctx, workflowId, req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult registerVerify(RegisterVerifyReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
         WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult loginIdentify(LoginIdentifyReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
-        WorkflowResponse wr = engine.start(ctx, "WF_LOGIN_IDENTIFY_V1", req);
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // ✅ 关键：按 tenantId + clientId 解析“登录 identify”流程
+        String workflowId = resolver.resolveWorkflowId(req.tenantId(), req.clientId(), FlowKind.LOGIN_IDENTIFY);
+
+        WorkflowResponse wr = engine.start(ctx, workflowId, req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult loginPassword(LoginPasswordReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
         WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult resetStart(ResetStartReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
-        WorkflowResponse wr = engine.start(ctx, "WF_RESET_START_V1", req);
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // ✅ 关键：按 tenantId + clientId 解析“找回密码 start”流程
+        String workflowId = resolver.resolveWorkflowId(req.tenantId(), req.clientId(), FlowKind.RESET_START);
+
+        WorkflowResponse wr = engine.start(ctx, workflowId, req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult resetVerify(ResetVerifyReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
         WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
         return toFlowResult(wr);
     }
 
     @Override
     public FlowResult resetCommit(ResetCommitReq req) {
-        WorkflowContext ctx = contextFactory.from(req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint());
+        WorkflowContext ctx = contextFactory.from(
+                req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
+        );
+
+        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
         WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
         return toFlowResult(wr);
     }

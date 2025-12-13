@@ -9,7 +9,7 @@ package com.PPCloud.PP_Login_Service.core.workflow;
  */
 public sealed interface StepResult permits StepResult.Ok, StepResult.Halt, StepResult.Fail {
 
-    record Ok() implements StepResult {}
+    record Ok(java.util.Map<String, Object> payload) implements StepResult {}
 
     record Halt(String publicHintCode, Object payload) implements StepResult {}
 

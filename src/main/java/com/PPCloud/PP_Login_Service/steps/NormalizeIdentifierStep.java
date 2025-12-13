@@ -51,6 +51,7 @@ public class NormalizeIdentifierStep implements WorkflowStep {
         bag.put("identifierType", type);
         bag.put("identifierNorm", norm);
 
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

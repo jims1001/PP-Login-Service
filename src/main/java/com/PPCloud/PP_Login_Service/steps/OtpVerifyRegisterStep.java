@@ -47,6 +47,7 @@ public class OtpVerifyRegisterStep implements WorkflowStep {
 
         bag.put("otpVerified", true);
         ctx.audit.append(IamAuthAudit.simple(ctx, userId, "REGISTER_VERIFY_OK", "OTP_PASSED"));
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

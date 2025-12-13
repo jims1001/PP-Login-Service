@@ -91,6 +91,7 @@ public class RegisterCreateUserStep implements WorkflowStep {
         }
 
         ctx.audit.append(IamAuthAudit.simple(ctx, userId, "REGISTER_OK", "USER_CREATED"));
-        return new StepResult.Ok();
+        Map<String, Object> payload = Map.of();
+        return new StepResult.Ok(payload);
     }
 }

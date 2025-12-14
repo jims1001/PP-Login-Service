@@ -1,10 +1,7 @@
 package com.PPCloud.PP_Login_Service.steps;
 
 import com.PPCloud.PP_Login_Service.api.dto.*;
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
 
 import java.util.Map;
 
@@ -27,8 +24,10 @@ public class NormalizeIdentifierStep implements WorkflowStep {
 
     @Override
     public StepResult execute(WorkflowContext ctx, Map<String, Object> bag, Object input) {
-        // input 可能是 RegisterReq/LoginIdentifyReq/ResetStartReq 等，统一用反射/接口取字段会更优雅
-        // 这里为了可复制，做最朴素的 instanceof 分派。
+
+        FlowBag fb = new FlowBag(bag);
+
+        // input 可能是 RegisterReq/LoginIdentifyReq/LoginPasswordReq/ResetStartReq/ResetVerifyReq 等
         String type;
         String raw;
 
@@ -48,10 +47,11 @@ public class NormalizeIdentifierStep implements WorkflowStep {
 
         String norm = ctx.normalizer.normalize(type, raw);
 
-        bag.put("identifierType", type);
-        bag.put("identifierNorm", norm);
+        // ✅ 用 FlowKeys + FlowBag 写入（统一 key，不散落 magic string）
+        fb.putStr(FlowKeys.IDENTIFIER_TYPE, type);
+        fb.putStr(FlowKeys.IDENTIFIER_NORM, norm);
 
-        Map<String, Object> payload = Map.of();
-        return new StepResult.Ok(payload);
+        // 如果你希望 Ok 不带 payload，可以直接 return new StepResult.Ok();
+        return new StepResult.Ok(Map.of());
     }
 }

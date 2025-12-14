@@ -1,6 +1,7 @@
 package com.PPCloud.PP_Login_Service.core.workflow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
 import java.util.Base64;
@@ -10,7 +11,7 @@ import java.util.Base64;
  * TODO：生产必须加签名，防止用户篡改 bag/currentStepIndex
  */
 
-@Service
+@Component("jsonBase64StateCodec")
 public class JsonBase64StateCodec implements StateCodec {
 
     private final ObjectMapper om = new ObjectMapper();

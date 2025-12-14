@@ -28,6 +28,7 @@ public class TokenServiceImpl implements TokenService {
         this.store = store;
     }
 
+
     @Override
     public TokenPair issueLoginTokens(TokenIssueContext ctx) {
         Objects.requireNonNull(ctx.tenantId());
@@ -168,7 +169,7 @@ public class TokenServiceImpl implements TokenService {
         if (idxKeys == null) return;
 
         for (String idxKey : idxKeys) {
-            Set<String> hashes = store.getSetMembers(idxKey);
+            Set<Object> hashes = store.getSetMembers(idxKey);
             if (hashes == null) continue;
 
             // idxKey: pp:idp:{tenantId}:rtidx:{userId}:{clientId}:{deviceHash}
@@ -176,9 +177,9 @@ public class TokenServiceImpl implements TokenService {
             String clientId = parts[6];
             String deviceHash = parts[7];
 
-            for (String rtHash : hashes) {
-                store.deleteRefreshRecord(tenantId, rtHash);
-                store.removeFromIndex(tenantId, userId, clientId, deviceHash, rtHash);
+            for (Object rtHash : hashes) {
+                store.deleteRefreshRecord(tenantId, (String) rtHash);
+                store.removeFromIndex(tenantId, userId, clientId, deviceHash, (String) rtHash);
             }
             store.deleteKey(idxKey);
         }

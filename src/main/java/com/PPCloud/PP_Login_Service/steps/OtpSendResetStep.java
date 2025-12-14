@@ -2,10 +2,7 @@ package com.PPCloud.PP_Login_Service.steps;
 
 
 import com.PPCloud.PP_Login_Service.api.dto.ResetStartReq;
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
 import com.PPCloud.PP_Login_Service.model.user.IamAuthAudit;
 import com.PPCloud.PP_Login_Service.model.user.IamOtpChallenge;
 
@@ -25,20 +22,30 @@ public class OtpSendResetStep implements WorkflowStep {
         this.cfg = cfg;
     }
 
+
     @Override
     public StepResult execute(WorkflowContext ctx, Map<String, Object> bag, Object input) {
 
-        if (!(input instanceof ResetStartReq req)) {
+        if (!(input instanceof ResetStartReq)) {
             return new StepResult.Fail("BAD_REQUEST", "INPUT_NOT_RESET_START_REQ");
         }
 
-        int ttl = (int) cfg.params().getOrDefault("ttlSeconds", 300);
+        FlowBag fb = new FlowBag(bag);
 
-        String type = (String) bag.get("identifierType");
-        String target = (String) bag.get("identifierNorm");
+        int ttl = intCfg("ttlSeconds", 300);
+
+        String type   = fb.getStr(FlowKeys.IDENTIFIER_TYPE);
+        String target = fb.getStr(FlowKeys.IDENTIFIER_NORM);
+
+        if (type == null || type.isBlank() || target == null || target.isBlank()) {
+            return new StepResult.Fail("BAD_REQUEST", "MISSING_IDENTIFIER_IN_STATE");
+        }
 
         String challengeId = "otp_" + UUID.randomUUID();
-        bag.put("challengeId", challengeId);
+        fb.putStr(FlowKeys.OTP_CHALLENGE_ID, challengeId);
+
+        // 可选：防止复用旧状态
+        fb.putBool(FlowKeys.OTP_VERIFIED, false);
 
         String code = "123456"; // TODO random
         String codeHash = "sha256(" + code + ")";
@@ -53,7 +60,6 @@ public class OtpSendResetStep implements WorkflowStep {
         otp.setAttempts(0);
         otp.setMaxAttempts(5);
 
-
         long expiresAtMs = ctx.now + ttl * 1000L;
         otp.setExpiresAt(expiresAtMs);
         otp.setCreatedAt(ctx.now);
@@ -62,6 +68,19 @@ public class OtpSendResetStep implements WorkflowStep {
 
         ctx.audit.append(IamAuthAudit.simple(ctx, null, "RESET_OTP_SENT", "RESET_PASSWORD"));
 
-        return new StepResult.Halt("NEED_VERIFY_CODE", Map.of("challengeId", challengeId, "expiresInSeconds", ttl));
+        return new StepResult.Halt(
+                "NEED_VERIFY_CODE",
+                Map.of("challengeId", challengeId, "expiresInSeconds", ttl)
+        );
+    }
+
+    /** 从 cfg.params 安全取 int（支持 Integer/Long/String） */
+    private int intCfg(String key, int def) {
+        Object v = cfg.params().get(key);
+        if (v == null) return def;
+        if (v instanceof Integer i) return i;
+        if (v instanceof Long l) return Math.toIntExact(l);
+        if (v instanceof String s) return Integer.parseInt(s);
+        throw new IllegalArgumentException("BAD_STEP_PARAM: " + key);
     }
 }

@@ -14,6 +14,7 @@ import org.springframework.context.annotation.ComponentScan;
 @ComponentScan(basePackages = "com.PPCloud.PP_Login_Service.api.controllers")
 @ComponentScan(basePackages = "com.PPCloud.PP_Login_Service.config")
 @ComponentScan(basePackages = "com.PPCloud.PP_Login_Service.security")
+@ComponentScan(basePackages = "com.PPCloud.PP_Login_Service.config.workflow")
 public class PpLoginServiceApplication {
 
 	public static void main(String[] args) {

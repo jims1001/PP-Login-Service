@@ -27,6 +27,9 @@ public class RedisConfig {
         }
         return Redisson.create(config);
     }
+
+
+
 }
 
 

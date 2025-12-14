@@ -2,10 +2,7 @@ package com.PPCloud.PP_Login_Service.steps;
 
 
 import com.PPCloud.PP_Login_Service.api.dto.RegisterReq;
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
 import com.PPCloud.PP_Login_Service.model.BaseModel;
 import com.PPCloud.PP_Login_Service.model.user.IamAuthAudit;
 import com.PPCloud.PP_Login_Service.model.user.IamUser;
@@ -40,10 +37,16 @@ public class RegisterCreateUserStep implements WorkflowStep {
             return new StepResult.Fail("BAD_REQUEST", "INPUT_NOT_REGISTER_REQ");
         }
 
-        String type = (String) bag.get("identifierType");
-        String norm = (String) bag.get("identifierNorm");
+        FlowBag fb = new FlowBag(bag);
 
-        // identifier 已存在：拒绝（或你也可以转向登录流程，这里先拒绝）
+        String type = fb.getStr(FlowKeys.IDENTIFIER_TYPE);
+        String norm = fb.getStr(FlowKeys.IDENTIFIER_NORM);
+
+        if (type == null || type.isBlank() || norm == null || norm.isBlank()) {
+            return new StepResult.Fail("BAD_REQUEST", "MISSING_IDENTIFIER_IN_STATE");
+        }
+
+        // identifier 已存在：拒绝（或可转向登录流程）
         Optional<IamUserIdentifier> exist = ctx.userDao.findIdentifier(ctx.tenantId, type, norm);
         if (exist.isPresent()) {
             ctx.audit.append(IamAuthAudit.simple(ctx, null, "REGISTER_FAIL", "IDENTIFIER_EXISTS"));
@@ -54,12 +57,19 @@ public class RegisterCreateUserStep implements WorkflowStep {
         IamUser user = new IamUser();
         user.setTenantId(ctx.tenantId);
         user.setStatus(BaseModel.Status.ACTIVE);
-        user.setDisplayName(req.displayName());
+
+        // displayName 兜底：为空时用 norm（也可以改成更严格校验）
+        String displayName = req.displayName();
+        if (displayName == null || displayName.isBlank()) displayName = norm;
+        user.setDisplayName(displayName);
+
         user.setCreatedAt(ctx.now);
         user.setUpdatedAt(ctx.now);
 
         String userId = ctx.userDao.createUser(user);
-        bag.put("userId", userId);
+
+        // ✅ 写入统一 key
+        fb.putStr(FlowKeys.USER_ID, userId);
 
         // 创建 identifier
         IamUserIdentifier idf = new IamUserIdentifier();
@@ -73,7 +83,8 @@ public class RegisterCreateUserStep implements WorkflowStep {
         ctx.userDao.saveIdentifier(idf);
 
         // 可选：创建密码
-        if (req.password() != null && !req.password().isBlank()) {
+        boolean passwordEnabled = req.password() != null && !req.password().isBlank();
+        if (passwordEnabled) {
             String hash = ctx.passwordHasher.hash(req.password());
 
             IamUserPassword pwd = new IamUserPassword();
@@ -83,15 +94,15 @@ public class RegisterCreateUserStep implements WorkflowStep {
             pwd.setPasswordHash(hash);
             pwd.setChangedAt(ctx.now);
             pwd.setCreatedAt(ctx.now);
-            ctx.userDao.savePassword(pwd);
 
-            bag.put("passwordEnabled", true);
-        } else {
-            bag.put("passwordEnabled", false);
+            ctx.userDao.savePassword(pwd);
         }
 
+        // ✅ 统一 key：是否启用密码
+        fb.putBool(FlowKeys.PASSWORD_ENABLED, passwordEnabled);
+
         ctx.audit.append(IamAuthAudit.simple(ctx, userId, "REGISTER_OK", "USER_CREATED"));
-        Map<String, Object> payload = Map.of();
-        return new StepResult.Ok(payload);
+
+        return new StepResult.Ok(Map.of());
     }
 }

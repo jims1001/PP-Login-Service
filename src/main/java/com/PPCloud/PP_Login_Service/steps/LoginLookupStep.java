@@ -1,10 +1,8 @@
 package com.PPCloud.PP_Login_Service.steps;
 
 import com.PPCloud.PP_Login_Service.api.dto.LoginIdentifyReq;
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
+import com.PPCloud.PP_Login_Service.model.BaseModel;
 import com.PPCloud.PP_Login_Service.model.user.IamAuthAudit;
 import com.PPCloud.PP_Login_Service.model.user.IamUser;
 import com.PPCloud.PP_Login_Service.model.user.IamUserFactor;
@@ -37,12 +35,19 @@ public class LoginLookupStep implements WorkflowStep {
     @Override
     public StepResult execute(WorkflowContext ctx, Map<String, Object> bag, Object input) {
 
-        if (!(input instanceof LoginIdentifyReq req)) {
+        if (!(input instanceof LoginIdentifyReq)) {
             return new StepResult.Fail("BAD_REQUEST", "INPUT_NOT_LOGIN_IDENTIFY_REQ");
         }
 
-        String type = (String) bag.get("identifierType");
-        String norm = (String) bag.get("identifierNorm");
+        FlowBag fb = new FlowBag(bag);
+
+        // ✅ 从 FlowKeys 取规范化后的 identifier
+        String type = fb.getStr(FlowKeys.IDENTIFIER_TYPE);
+        String norm = fb.getStr(FlowKeys.IDENTIFIER_NORM);
+
+        if (type == null || type.isBlank() || norm == null || norm.isBlank()) {
+            return new StepResult.Fail("BAD_REQUEST", "MISSING_IDENTIFIER_IN_STATE");
+        }
 
         Optional<IamUserIdentifier> idfOpt = ctx.userDao.findIdentifier(ctx.tenantId, type, norm);
         if (idfOpt.isEmpty()) {
@@ -52,6 +57,7 @@ public class LoginLookupStep implements WorkflowStep {
         }
 
         IamUserIdentifier idf = idfOpt.get();
+
         Optional<IamUser> userOpt = ctx.userDao.findUser(ctx.tenantId, idf.getUserId());
         if (userOpt.isEmpty()) {
             ctx.audit.append(IamAuthAudit.simple(ctx, null, "LOGIN_IDENTIFY", "USER_NOT_FOUND"));
@@ -59,12 +65,16 @@ public class LoginLookupStep implements WorkflowStep {
         }
 
         IamUser user = userOpt.get();
-        if (!"ACTIVE".equals(user.getStatus())) {
+
+
+
+        if (!BaseModel.Status.ACTIVE.equals(user.getStatus())) {
             ctx.audit.append(IamAuthAudit.simple(ctx, user.getId(), "LOGIN_IDENTIFY", "USER_NOT_ACTIVE"));
             return new StepResult.Fail("LOGIN_REJECTED", "USER_NOT_ACTIVE");
         }
 
-        bag.put("userId", user.getId());
+        // ✅ 写入 userId（统一 key）
+        fb.putStr(FlowKeys.USER_ID, user.getId());
 
         boolean hasPwd = ctx.userDao.findPassword(ctx.tenantId, user.getId()).isPresent();
         List<IamUserFactor> factors = ctx.userDao.listEnabledFactors(ctx.tenantId, user.getId());

@@ -1,9 +1,6 @@
 package com.PPCloud.PP_Login_Service.steps;
 
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
 
 import java.util.Map;
 
@@ -20,15 +17,30 @@ public class DeviceUpsertSeenStep implements WorkflowStep {
 
     @Override
     public StepResult execute(WorkflowContext ctx, Map<String, Object> bag, Object input) {
-        boolean ok = Boolean.TRUE.equals(bag.get("authOk"));
-        if (!ok) return new StepResult.Fail("LOGIN_FAILED", "AUTH_NOT_OK");
 
-        String userId = (String) bag.get("userId");
-        if (userId == null) return new StepResult.Fail("LOGIN_FAILED", "USER_ID_MISSING");
+        FlowBag fb = new FlowBag(bag);
 
-        // 平台字段你可以自己完善（这里 platform 简化）
-        ctx.userDao.upsertDeviceSeen(ctx.tenantId, userId, ctx.deviceFingerprint, ctx.ua, "unknown", ctx.now);
-        Map<String, Object> payload = Map.of();
-        return new StepResult.Ok(payload);
+        // ✅ 统一从 FlowKeys 读认证结果
+        if (!fb.getBool(FlowKeys.AUTH_OK)) {
+            return new StepResult.Fail("LOGIN_FAILED", "AUTH_NOT_OK");
+        }
+
+        // ✅ 统一从 FlowKeys 读 userId
+        String userId = fb.getStr(FlowKeys.USER_ID);
+        if (userId == null || userId.isBlank()) {
+            return new StepResult.Fail("LOGIN_FAILED", "USER_ID_MISSING");
+        }
+
+        // 平台字段你可以扩展：platform / os / appVersion / ip 等
+        ctx.userDao.upsertDeviceSeen(
+                ctx.tenantId,
+                userId,
+                ctx.deviceFingerprint,
+                ctx.ua,
+                "unknown",
+                ctx.now
+        );
+
+        return new StepResult.Ok(Map.of());
     }
 }

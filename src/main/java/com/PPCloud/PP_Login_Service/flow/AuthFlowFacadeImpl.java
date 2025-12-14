@@ -52,8 +52,9 @@ public class AuthFlowFacadeImpl implements AuthFlowFacade {
                 req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
         );
 
-        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
-        WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
+        // ✅ 强制走 VERIFY workflow（不依赖 token 里的 workflowId）
+        WorkflowResponse wr = engine.resume(ctx, "WF_REGISTER_VERIFY_V1", req.flowToken(), req);
+
         return toFlowResult(wr);
     }
 
@@ -76,8 +77,13 @@ public class AuthFlowFacadeImpl implements AuthFlowFacade {
                 req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
         );
 
-        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
-        WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
+        // ✅ 关键：按 clientId 决定走 V1 还是 V2
+        // 比如：admin 走 V2（登录后返回 accessToken），普通走 V1（不发 token）
+        String wfId = resolver.resolveWorkflowId(req.tenantId(), req.clientId(), FlowKind.LOGIN_PASSWORD);
+
+        // ✅ 用“带 workflowId 的 resume”
+        WorkflowResponse wr = engine.resume(ctx, wfId, req.flowToken(), req);
+
         return toFlowResult(wr);
     }
 
@@ -100,8 +106,9 @@ public class AuthFlowFacadeImpl implements AuthFlowFacade {
                 req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
         );
 
-        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
-        WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
+        // ✅ 强制走 WF_RESET_VERIFY_V1
+        WorkflowResponse wr = engine.resume(ctx, "WF_RESET_VERIFY_V1", req.flowToken(), req);
+
         return toFlowResult(wr);
     }
 
@@ -111,8 +118,9 @@ public class AuthFlowFacadeImpl implements AuthFlowFacade {
                 req.tenantId(), req.clientId(), req.ip(), req.ua(), req.deviceFingerprint()
         );
 
-        // resume：workflowId 从 flowToken 中恢复（不需要 resolver）
-        WorkflowResponse wr = engine.resume(ctx, req.flowToken(), req);
+        // ✅ 强制走 COMMIT workflow
+        WorkflowResponse wr = engine.resume(ctx, "WF_RESET_COMMIT_V1", req.flowToken(), req);
+
         return toFlowResult(wr);
     }
 

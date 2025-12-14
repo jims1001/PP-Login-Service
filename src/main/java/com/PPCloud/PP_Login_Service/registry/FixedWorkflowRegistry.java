@@ -67,17 +67,19 @@ public class FixedWorkflowRegistry implements WorkflowRegistry {
             );
 
             case "WF_LOGIN_PASSWORD_V2" -> new WorkflowDefinition(
-                    "WF_LOGIN_PASSWORD_V1",
+                    "WF_LOGIN_PASSWORD_V2",
                     new WorkflowVersion(1, 0),
                     List.of(
                             new StepConfig("normalize", "NORMALIZE_IDENTIFIER", Map.of()),
+                            new StepConfig("lookup",    "LOGIN_LOOKUP",         Map.of()),
+                            new StepConfig("normalize", "NORMALIZE_IDENTIFIER", Map.of()),
                             new StepConfig("pwd",       "LOGIN_VERIFY_PASSWORD", Map.of()),
-                            new StepConfig("device",    "DEVICE_UPSERT_SEEN", Map.of()),
                             new StepConfig("token",     "ISSUE_ACCESS_TOKEN", Map.of(
                                     "accessTtlSeconds", 3600,
                                     "refreshTtlSeconds", 30 * 24 * 3600,
                                     "includeRefresh", true
-                            ))
+                            )),
+                            new StepConfig("device",    "DEVICE_UPSERT_SEEN", Map.of())
                     )
             );
 

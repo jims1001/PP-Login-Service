@@ -22,7 +22,12 @@ public record WorkflowState(
         return new WorkflowState(workflowId, version, 0, new HashMap<>());
     }
 
-    public WorkflowState withCurrentStepIndex(int next) {
+    public WorkflowState withStepIndex(int next) {
         return new WorkflowState(workflowId, version, next, bag);
+    }
+
+    // ✅ 关键：给一个 typed-view
+    public FlowBag bagView() {
+        return new FlowBag(bag);
     }
 }

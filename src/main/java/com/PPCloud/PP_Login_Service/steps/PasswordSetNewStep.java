@@ -1,10 +1,7 @@
 package com.PPCloud.PP_Login_Service.steps;
 
 import com.PPCloud.PP_Login_Service.api.dto.ResetCommitReq;
-import com.PPCloud.PP_Login_Service.core.workflow.StepConfig;
-import com.PPCloud.PP_Login_Service.core.workflow.StepResult;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowContext;
-import com.PPCloud.PP_Login_Service.core.workflow.WorkflowStep;
+import com.PPCloud.PP_Login_Service.core.workflow.*;
 import com.PPCloud.PP_Login_Service.model.user.IamAuthAudit;
 import com.PPCloud.PP_Login_Service.model.user.IamUserPassword;
 
@@ -29,8 +26,9 @@ public class PasswordSetNewStep implements WorkflowStep {
             return new StepResult.Fail("BAD_REQUEST", "INPUT_NOT_RESET_COMMIT_REQ");
         }
 
-        // ✅ 实际项目：userId 不应该由客户端传，应该从 actionTokenPayload 提供
-        // 这里为了让你先跑通，保留字段；你落地时请移除 req.userId
+        FlowBag fb = new FlowBag(bag);
+
+        // ✅ 临时兼容：userId 先从 req 取（你后续会改成 actionToken 解出来）
         String userId = req.userId();
         if (userId == null || userId.isBlank()) {
             return new StepResult.Fail("RESET_REJECTED", "USER_ID_REQUIRED");
@@ -49,8 +47,12 @@ public class PasswordSetNewStep implements WorkflowStep {
         ctx.userDao.savePassword(pwd);
         ctx.audit.append(IamAuthAudit.simple(ctx, userId, "RESET_DONE", "PASSWORD_UPDATED"));
 
-        bag.put("result", Map.of("userId", userId, "passwordUpdated", true));
-        Map<String, Object> payload = Map.of();
+        // ✅ 推荐：对外返回放 payload，不污染 bag
+        Map<String, Object> payload = Map.of(
+                "userId", userId,
+                "passwordUpdated", true
+        );
+
         return new StepResult.Ok(payload);
     }
 }

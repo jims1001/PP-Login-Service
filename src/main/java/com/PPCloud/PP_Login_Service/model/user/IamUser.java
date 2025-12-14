@@ -24,7 +24,6 @@ public class IamUser extends BaseModel {
 
     private String tenantId;
 
-    private String Id;
     /**
      * 用户状态
      *

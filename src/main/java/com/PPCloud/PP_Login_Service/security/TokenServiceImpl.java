@@ -61,7 +61,7 @@ public class TokenServiceImpl implements TokenService {
 
         Duration rtTtl = Duration.ofSeconds(ctx.refreshTtlSeconds());
         store.putRefreshRecord(ctx.tenantId(), rtHash, rec, rtTtl);
-        store.addToIndex(ctx.tenantId(), ctx.userId(), ctx.clientId(), deviceHash, rtHash, rtTtl);
+        store.addToIndexAndTrim(ctx.tenantId(), ctx.userId(), ctx.clientId(), deviceHash, rtHash, 2, rtTtl);
 
         return new TokenPair(access, "Bearer", ctx.accessTtlSeconds(), refreshPlain);
     }
@@ -72,15 +72,24 @@ public class TokenServiceImpl implements TokenService {
         Objects.requireNonNull(ctx.clientId());
         Objects.requireNonNull(ctx.refreshToken());
 
+        String tenantId = ctx.tenantId();
+        String clientId = ctx.clientId();
+
         String rtHash = TokenCrypto.sha256Base64Url(ctx.refreshToken());
-        RefreshTokenRecord rec = store.getRefreshRecord(ctx.tenantId(), rtHash);
+
+        // 1) 读 record
+        RefreshTokenRecord rec = store.getRefreshRecord(tenantId, rtHash);
         if (rec == null) {
             throw new IllegalArgumentException("REFRESH_INVALID");
         }
-        if (rec.revoked()) {
-            throw new IllegalArgumentException("REFRESH_REVOKED");
+
+        // ✅ tenant 一致性校验（你 record 里有 tenantId，就应该校验）
+        if (!tenantId.equals(rec.tenantId())) {
+            throw new IllegalArgumentException("REFRESH_TENANT_MISMATCH");
         }
-        if (!rec.clientId().equals(ctx.clientId())) {
+
+        // 2) client / device 校验
+        if (!rec.clientId().equals(clientId)) {
             throw new IllegalArgumentException("REFRESH_CLIENT_MISMATCH");
         }
 
@@ -89,28 +98,43 @@ public class TokenServiceImpl implements TokenService {
             throw new IllegalArgumentException("REFRESH_DEVICE_MISMATCH");
         }
 
+        // 3) 过期校验
         Instant now = Instant.now();
         if (now.getEpochSecond() >= rec.expiresAtEpochSec()) {
-            // 过期：清理
-            store.deleteRefreshRecord(ctx.tenantId(), rtHash);
-            store.removeFromIndex(ctx.tenantId(), rec.userId(), rec.clientId(), rec.deviceHash(), rtHash);
+            store.deleteRefreshRecord(tenantId, rtHash);
+            store.removeFromIndex(tenantId, rec.userId(), rec.clientId(), rec.deviceHash(), rtHash);
             throw new IllegalArgumentException("REFRESH_EXPIRED");
         }
 
-        // --- Rotation：旧 refresh 用一次就废 ---
-        store.deleteRefreshRecord(ctx.tenantId(), rtHash);
-        store.removeFromIndex(ctx.tenantId(), rec.userId(), rec.clientId(), rec.deviceHash(), rtHash);
+        // 4) 业务撤销校验（可选，但你 record 有 revoked 就应该用）
+        if (rec.revoked()) {
+            throw new IllegalArgumentException("REFRESH_REVOKED");
+        }
 
-        // 发新 access + 新 refresh（沿用同一 family）
-        int accessTtl = 3600;           // 你也可以从租户策略读取
+        // 5) 生成 new refresh
+        int accessTtl = 3600;
         int refreshTtl = 30 * 24 * 3600;
+        Duration rtTtl = Duration.ofSeconds(refreshTtl);
 
+        String newRefreshPlain = TokenCrypto.newOpaqueToken(48);
+        String newRtHash = TokenCrypto.sha256Base64Url(newRefreshPlain);
+
+        // 6) 原子消费旧 refresh：ACTIVE -> USED
+        boolean ok = store.markRefreshUsedOnce(tenantId, rtHash, newRtHash, rtTtl);
+        if (!ok) {
+            store.revokeFamilyByRefreshHash(tenantId, rtHash);
+            throw new IllegalArgumentException("REFRESH_REUSE_DETECTED");
+        }
+
+        // 7) rotation：旧的从索引移除
+        store.removeFromIndex(tenantId, rec.userId(), rec.clientId(), rec.deviceHash(), rtHash);
+
+        // 8) 签新 access（这里用 tenantId/clientId/userId）
         String jti = UUID.randomUUID().toString();
         String access = signAccessJwt(new TokenIssueContext(
-                rec.tenantId(),
-                rec.clientId(),
+                tenantId,
+                clientId,
                 rec.userId(),
-
                 ctx.deviceFingerprint(),
                 null,
                 null,
@@ -119,24 +143,21 @@ public class TokenServiceImpl implements TokenService {
                 refreshTtl
         ), now, jti);
 
-        String newRefreshPlain = TokenCrypto.newOpaqueToken(48);
-        String newRtHash = TokenCrypto.sha256Base64Url(newRefreshPlain);
-
+        // 9) 构造新的 RefreshTokenRecord —— ✅ 注意：record 现在第一个参数是 tenantId
         long newExp = now.plusSeconds(refreshTtl).getEpochSecond();
         RefreshTokenRecord newRec = new RefreshTokenRecord(
-                rec.tenantId(),
+                tenantId,                 // ✅ tenantId 必须补上，否则编译不过
                 rec.userId(),
-                rec.clientId(),
-                rec.deviceHash(),
+                clientId,
+                deviceHash,               // 用本次计算后的 deviceHash（等价于 rec.deviceHash()）
                 rec.tokenFamily(),
                 now.getEpochSecond(),
                 newExp,
                 false
         );
 
-        Duration rtTtl = Duration.ofSeconds(refreshTtl);
-        store.putRefreshRecord(rec.tenantId(), newRtHash, newRec, rtTtl);
-        store.addToIndex(rec.tenantId(), rec.userId(), rec.clientId(), rec.deviceHash(), newRtHash, rtTtl);
+        store.putRefreshRecord(tenantId, newRtHash, newRec, rtTtl);
+        store.addToIndexAndTrim(tenantId, rec.userId(), clientId, deviceHash, newRtHash, 2, rtTtl);
 
         return new TokenPair(access, "Bearer", accessTtl, newRefreshPlain);
     }
@@ -154,7 +175,7 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public void revokeDevice(String tenantId, String userId, String clientId, String deviceFingerprint) {
         String deviceHash = TokenCrypto.deviceHash(deviceFingerprint);
-        Set<String> hashes = store.getIndexMembers(tenantId, userId, clientId, deviceHash);
+        List<String> hashes =  store.getIndexMembersNewestFirst(tenantId, userId, clientId, deviceHash);
         if (hashes == null) return;
 
         for (String rtHash : hashes) {
@@ -169,7 +190,7 @@ public class TokenServiceImpl implements TokenService {
         if (idxKeys == null) return;
 
         for (String idxKey : idxKeys) {
-            Set<Object> hashes = store.getSetMembers(idxKey);
+            Set<String> hashes = store.getIndexMembers(idxKey);
             if (hashes == null) continue;
 
             // idxKey: pp:idp:{tenantId}:rtidx:{userId}:{clientId}:{deviceHash}
@@ -177,9 +198,9 @@ public class TokenServiceImpl implements TokenService {
             String clientId = parts[6];
             String deviceHash = parts[7];
 
-            for (Object rtHash : hashes) {
-                store.deleteRefreshRecord(tenantId, (String) rtHash);
-                store.removeFromIndex(tenantId, userId, clientId, deviceHash, (String) rtHash);
+            for (String rtHash : hashes) {
+                store.deleteRefreshRecord(tenantId, rtHash);
+                store.removeFromIndex(tenantId, userId, clientId, deviceHash, rtHash);
             }
             store.deleteKey(idxKey);
         }

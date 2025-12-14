@@ -5,8 +5,8 @@ public record RefreshTokenRecord(
         String userId,
         String clientId,
         String deviceHash,
-        String tokenFamily,    // 用于 rotation（可选但强烈建议）
+        String tokenFamily,          // rotation 家族
         long issuedAtEpochSec,
         long expiresAtEpochSec,
-        boolean revoked
+        boolean revoked              // 业务撤销（非并发判断）
 ) {}

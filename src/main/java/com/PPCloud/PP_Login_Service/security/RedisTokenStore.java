@@ -119,14 +119,24 @@ public class RedisTokenStore {
     private void ensureHashLikeOrReset(String key) {
         RType type = redisson.getKeys().getType(key);
         if (type == null) return;
-        if (type == RType.MAP) return;
+
+        // 你这个版本没有 RType.HASH，所以不能写 type == RType.HASH。
+        // 采取最稳策略：只在“明显冲突类型”时才 reset。
+        boolean definitelyNotHashLike =
+                type == RType.ZSET ||
+                        type == RType.SET  ||
+                        type == RType.LIST ;
+
+        // 其它类型（含 MAP / 以及未来可能出现的 HASH/STREAM/…）一律认为“可能是 hash-like”，不要动。
+        if (!definitelyNotHashLike) return;
 
         String backup = key + ":badtype:" + type + ":" + System.currentTimeMillis();
         try {
             redisson.getKeys().rename(key, backup);
             log.warn("Redis key WRONGTYPE detected (hash-like expected). rename {} -> {}", key, backup);
         } catch (Exception renameEx) {
-            log.warn("Redis key WRONGTYPE detected (hash-like expected). rename failed, will delete. key={}, type={}", key, type, renameEx);
+            log.warn("Redis key WRONGTYPE detected (hash-like expected). rename failed, will delete. key={}, type={}",
+                    key, type, renameEx);
             redisson.getKeys().delete(key);
         }
     }
@@ -166,8 +176,13 @@ public class RedisTokenStore {
             if (rec.clientId() != null) fields.put(F_CLIENT_ID, rec.clientId());
             if (rec.deviceHash() != null) fields.put(F_DEVICE_HASH, rec.deviceHash());
 
+
             m.putAll(fields);
-            m.expire(ttl.toMillis(), TimeUnit.MILLISECONDS);
+            redisson.getKeys().expire(
+                    rtKey(tenantId, rtHash),
+                    ttl.toMillis(),
+                    TimeUnit.MILLISECONDS
+            );
 
         } catch (Exception e) {
             throw new RuntimeException("REDIS_PUT_REFRESH_FAILED", e);
